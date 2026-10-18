@@ -1,0 +1,10 @@
+name: "黄队的奇妙大冒险"
+displayName: "黄队的奇妙大冒险"
+author: 喜欢青冈的容墨
+description: "B站关注许君w/喜欢青冈的容墨"
+version: "0.6.10"
+minGameVersion: "159"
+main: "com.sepker.SepkerMod"
+dependencies: [ ]
+hidden: false
+java: true

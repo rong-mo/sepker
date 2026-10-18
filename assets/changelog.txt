@@ -1,0 +1,91 @@
+[blue]v0.6.10
+
+[white][中文]
+[lightgray]• 新增物品：贫铀
+[lightgray]  - 脱贫后的铀，极具放射性但基本稳定
+[lightgray]  - 放射性 1000%，无爆炸性、燃烧性、放电性
+[lightgray]• 新增工厂：相织脱贫器（分类：制造）
+[lightgray]  - 利用铀，快速生产相织布，并产生贫铀
+[lightgray]  - 4×4，血量 500，建造 6 秒，物品容量 150
+[lightgray]  - 输入：10 铀 + 20 沙（每次）、6 水/秒、1250 电力/秒
+[lightgray]  - 输出：20 相织布 + 5 贫铀 + 5 废料（每次，5 秒一次）
+[lightgray]  - 研究：挂在铀提纯工厂之后，前置为通关「遥远的桥」
+[lightgray]• 新增工厂：大型冷冻液混合器（分类：制造）
+[lightgray]  - 利用铀，强力的将钛混合进水中
+[lightgray]  - 4×4，血量 1600，建造 18 秒，物品容量 20，液体容量 96
+[lightgray]  - 输入：1 铀 + 4 钛（每次）、48 水/秒、600 电力/秒
+[lightgray]  - 输出：48 冷冻液/秒（1 秒一次）
+[lightgray]  - 研究：挂在工业涡轮之后，前置为着陆「遥远的桥」
+[lightgray]• 新增逻辑指令：快速消息（fastmessage）
+[lightgray]  - 即时替换文本，不再像原版 message 那样卡住处理器
+[lightgray]  - 支持黑框 / 中间 / 顶部 / 任务栏 四种位置
+[lightgray]  - 显示时长可填（默认 3 秒）
+[lightgray]  - 末尾可切换 cover（覆盖）与 wait（同原版等待）
+[lightgray]• 修复：战役扇区里的世界处理器无法链接玩家建筑
+[lightgray]  - 原版战役会强制关闭该规则，本星球已改回
+[lightgray]• 新增：战役难度 / 规则面板（原版星球才有，mod 星球之前没有）
+[lightgray]  - 难度：正常 / 困难（敌方血量伤害 ×1.4）/ 毁灭（×2）
+[lightgray]  - 开关：敌方入侵区块、隐藏敌人出生点、RTS 进攻 AI、重置丢失区块（默认开）
+[lightgray]• 修复：亚空间传送带桥接模式与普通传送带的首/末端交互
+[lightgray]  - 原版整栈交货要求对方 link 为 -1；桥接模式未清理父类 link，只推得进第一栈
+[lightgray]  - 输出改为按传送带协议交付，不再只依赖 acceptItem
+[lightgray]  - 未连接的桥接块现在也会收货并向四周倾倒，不再只进不出
+[lightgray]  - 倾倒时跳过正对自己的上游传送带，避免倒灌
+[lightgray]  - 修复桥接模式贴图在缓存层丢失（切换模式后贴图消失）
+
+[white][English]
+[lightgray]• New item: Depleted Uranium
+[lightgray]  - "Depleted" uranium: extremely radioactive, yet basically stable
+[lightgray]  - 1000% radioactivity; no explosiveness, flammability, or charge
+[lightgray]• New factory: Phase Depleter (category: crafting)
+[lightgray]  - Uses uranium to rapidly produce phase fabric, leaving depleted uranium
+[lightgray]  - 4x4, 500 HP, 6s build time, 150 item capacity
+[lightgray]  - Input: 10 uranium + 20 sand (per craft), 6 water/s, 1250 power/s
+[lightgray]  - Output: 20 phase fabric + 5 depleted uranium + 5 scrap (per craft, 5s each)
+[lightgray]  - Research: after Uranium Purification Factory; requires clearing "Distant Bridge"
+[lightgray]• New factory: Large Cryofluid Mixer (category: crafting)
+[lightgray]  - Uses uranium to forcefully mix titanium into water
+[lightgray]  - 4x4, 1600 HP, 18s build time, 20 item capacity, 96 liquid capacity
+[lightgray]  - Input: 1 uranium + 4 titanium (per craft), 48 water/s, 600 power/s
+[lightgray]  - Output: 48 cryofluid/s (1s per craft)
+[lightgray]  - Research: after Industrial Turbine; requires landing on "Distant Bridge"
+[lightgray]• New logic instruction: Fast Message (fastmessage)
+[lightgray]  - Instantly replaces text instead of stalling the processor like vanilla message
+[lightgray]  - Supports all 4 positions: notify / announce / toast / mission
+[lightgray]  - Display duration is configurable (default 3 seconds)
+[lightgray]  - Trailing toggle: cover (replace) or wait (same as vanilla)
+[lightgray]• Fixed: world processors in campaign sectors could not link to player buildings
+[lightgray]  - Vanilla campaign forces this rule off; re-enabled for this planet
+[lightgray]• New: campaign difficulty / rules panel (vanilla planets had it, mod planet did not)
+[lightgray]  - Difficulty: Normal / Hard (enemy health & damage x1.4) / Eradication (x2)
+[lightgray]  - Toggles: sector invasion, hide enemy spawns, RTS attack AI, reset lost sectors (on by default)
+[lightgray]• Fixed: warp conveyor bridge mode failed to interact with normal conveyors at head/end
+[lightgray]  - Vanilla stack transfer requires the receiver's link == -1; bridge mode never cleared the parent link
+[lightgray]  - Output now follows the conveyor transfer protocol instead of relying on acceptItem alone
+[lightgray]  - Unlinked bridge blocks now accept items and dump to neighbours instead of swallowing them
+[lightgray]  - Dumping skips upstream conveyors that face this block, preventing backflow
+[lightgray]  - Fixed the bridge texture disappearing after switching modes (render cache)
+
+[blue]v0.6.9
+
+[white][中文]
+[lightgray]• 小型机场
+[lightgray]  - 起飞前检查单位上限，已达上限时拒绝起飞
+[lightgray]    （修复"刚起飞就坠机"：超上限的单位会被原版直接处死）
+[lightgray]  - 新增降落 / 起飞动画，用飞机自己的贴图沿跑道移动
+[lightgray]  - 降落保留机头朝向，并逐渐转为正上方
+[lightgray]  - 机库内按存量自适应绘制停放的飞机
+[lightgray]  - 机库每秒回血 50，起飞后获得 5 秒加速
+[lightgray]• 亚空间运输传送带：配置面板改为即时刷新
+[lightgray]• 飞机：玩家直接操控时可以自动转向（原先只能控制前后）
+
+[white][English]
+[lightgray]• Small Airport
+[lightgray]  - Checks the unit cap before takeoff; refuses to launch when full
+[lightgray]    (fixes the instant crash: over-cap units are killed by the game)
+[lightgray]  - New landing / takeoff animation, drawn with the aircraft's own sprite
+[lightgray]  - Landing keeps the nose direction and gradually levels out upward
+[lightgray]  - Aircraft parked in the hangar are drawn auto-sized
+[lightgray]  - Hangar heals 50/s, launched aircraft gain a 5s speed boost
+[lightgray]• Warp Conveyor: config panel now refreshes instantly
+[lightgray]• Aircraft: player-controlled jets can now turn (previously throttle only)

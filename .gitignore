@@ -1,0 +1,22 @@
+# 构建中间产物
+build/
+classes.jar
+classes.dex
+.dexout/
+.pkg/
+sources.txt
+
+# 本地依赖：游戏本体 + 原版源码（都在 .gitignore 里，clone 后自行放置）
+Mindustry.jar
+mindustry.jar
+Mindustry-master/
+
+# 开发测试包（正式发布包 `黄队的奇妙大冒险V*.jar` 才入库）
+SepkerMod.jar
+
+# 杂项
+logs.txt
+undefined/
+.dsh-meow/
+AGENTS.md
+资源盆地.msav
