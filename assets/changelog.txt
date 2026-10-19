@@ -21,6 +21,8 @@
 [lightgray]  - 支持黑框 / 中间 / 顶部 / 任务栏 四种位置
 [lightgray]  - 显示时长可填（默认 3 秒）
 [lightgray]  - 末尾可切换 cover（覆盖）与 wait（同原版等待）
+[lightgray]• 修复：自定义难度面板现在只对赛普克尔生效，其它星球恢复原版面
+[lightgray]  - 之前无论点哪个星球的「战役难度」都会进入本 mod 的面板
 [lightgray]• 修复：战役扇区里的世界处理器无法链接玩家建筑
 [lightgray]  - 原版战役会强制关闭该规则，本星球已改回
 [lightgray]• 新增：战役难度 / 规则面板（原版星球才有，mod 星球之前没有）
@@ -54,6 +56,8 @@
 [lightgray]  - Supports all 4 positions: notify / announce / toast / mission
 [lightgray]  - Display duration is configurable (default 3 seconds)
 [lightgray]  - Trailing toggle: cover (replace) or wait (same as vanilla)
+[lightgray]• Fixed: the custom difficulty panel now only applies to Sepker; other planets use the vanilla one
+[lightgray]  - Previously the "campaign difficulty" button opened this mod's panel on every planet
 [lightgray]• Fixed: world processors in campaign sectors could not link to player buildings
 [lightgray]  - Vanilla campaign forces this rule off; re-enabled for this planet
 [lightgray]• New: campaign difficulty / rules panel (vanilla planets had it, mod planet did not)
