@@ -45,7 +45,8 @@ public class SepkerPlanet {
                 }
             };
 
-            startSector = 0;
+            // ⭐ 起始扇区 = 主线第一关所在的格子（必须与 SepkerSectors.main1 的索引一致）
+            startSector = SepkerSectors.MAIN1_SECTOR;
             generator = new SepkerPlanetGenerator();
             allowLaunchToNumbered = false;
 
