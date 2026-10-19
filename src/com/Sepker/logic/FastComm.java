@@ -29,18 +29,26 @@ public class FastComm {
 
     /** 当前正在播放的通信特效；null = 没有 */
     public static CommTable current;
+    public static int tokenSeq;
 
-    public static void show(boolean stop, Color color) {
+    /** @return 本次动画的 token；同一类型正在播放时返回它自己的 token */
+    public static int show(boolean stop, Color color) {
         // 场景被清空（退出地图）后不要拿着一张已经脱离场景的旧表做去重
         if (current != null && current.parent == null) {
             current = null;
         }
         if (current != null && current.stop == stop) {
-            return;
+            return current.token;
         }
         clear();
-        current = new CommTable(stop, color);
+        tokenSeq++;
+        current = new CommTable(stop, color, tokenSeq);
         Core.scene.add(current);
+        return tokenSeq;
+    }
+
+    public static boolean isPlaying(int token) {
+        return current != null && current.parent != null && current.token == token;
     }
 
     public static void clear() {
@@ -55,13 +63,15 @@ public class FastComm {
 
         /** true = 通讯终止（浅红），false = 通讯开始（自定义颜色） */
         public boolean stop;
+        public int token;
         public final Color color = new Color();
         public float time;
         public float alpha;
         public Label chevR, chevL, title;
 
-        public CommTable(boolean stop, Color color) {
+        public CommTable(boolean stop, Color color, int token) {
             this.stop = stop;
+            this.token = token;
             this.color.set(stop ? Color.valueOf("ff8a8a") : color);
 
             setFillParent(true);
@@ -144,7 +154,8 @@ public class FastComm {
                 return;
             }
 
-            if (Vars.state.isMenu() || !Vars.ui.hudfrag.shown) {
+            // 只在地图菜单里回收；HUD 被隐藏（过场）时特效要继续播完，否则阻塞会提前解除
+            if (Vars.state.isMenu()) {
                 removeSelf();
             }
         }

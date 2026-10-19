@@ -80,18 +80,41 @@ public class SepkerLogicStatements {
                                 s.name = FastMessageStatement.unquote(tokens[5]);
                             }
                             if (s.dialogMode == FastMessageStatement.D_CHOOSE) {
+                                // 新格式：... choose "名字" "变量" <数量> "选项"...
+                                // 旧格式（V0.6.11 早期）：... choose "名字" <数量> "选项"...
+                                String var = null;
                                 int count = 0;
+                                int start = 8;
+                                boolean hasVar = false;
+
                                 if (tokens.length > 6 && tokens[6] != null) {
+                                    String t6 = FastMessageStatement.unquote(tokens[6]);
                                     try {
-                                        count = Integer.parseInt(
-                                            FastMessageStatement.unquote(tokens[6]));
+                                        count = Integer.parseInt(t6);
                                     } catch (Throwable ignored) {
+                                        hasVar = true;
+                                        var = t6;
+                                        if (tokens.length > 7 && tokens[7] != null) {
+                                            try {
+                                                count = Integer.parseInt(
+                                                    FastMessageStatement.unquote(tokens[7]));
+                                            } catch (Throwable ignored2) {
+                                            }
+                                        }
                                     }
                                 }
+
+                                if (hasVar) {
+                                    s.choiceVar = var == null ? "sepkerchoice" : var;
+                                } else {
+                                    s.choiceVar = "sepkerchoice";
+                                    start = 7;
+                                }
+
                                 if (count < 0) count = 0;
                                 if (count > 9) count = 9;
                                 for (int i = 0; i < count; i++) {
-                                    int idx = 7 + i;
+                                    int idx = start + i;
                                     if (idx < tokens.length && tokens[idx] != null) {
                                         s.options.add(FastMessageStatement.unquote(tokens[idx]));
                                     }

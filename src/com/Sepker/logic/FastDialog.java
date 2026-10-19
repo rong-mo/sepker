@@ -13,6 +13,7 @@ import arc.scene.ui.Label;
 import arc.scene.ui.TextButton;
 import arc.scene.ui.layout.Scl;
 import arc.scene.ui.layout.Table;
+import arc.struct.Seq;
 import arc.util.Align;
 import arc.util.Time;
 import mindustry.Vars;
@@ -20,54 +21,37 @@ import mindustry.ui.Fonts;
 import mindustry.ui.Styles;
 
 /**
- * 真正的对话框（fastmessage 的 dialog 类型）。
+ * 常驻对话框（fastmessage 的 dialog 类型）。
  *
- * - 对话：屏幕底部升起一个黑色对话框，从文本缓冲区打字机式打印；
- *   左上角挂一个小黑框显示名字；点击屏幕补全当前行，再点一下翻到下一条（可阻塞）。
- * - 选择：在对话的基础上，把正文换成 2 个以上的文字按钮（选项由指令里的输入框决定），
- *   点击某个选项后关闭对话框，并把序号写进逻辑变量 sepkerchoice（1 起）。
- * - 暂停：直接关掉对话框。
+ * 行为（按用户 2026-10-19 的修正）：
+ *   - 黑框从第一次对话/选择开始一直显示，只有「暂停」或离开地图才关闭；
+ *   - 普通对话：不阻塞处理器，每执行一次就把这一句追加进队列（缓存表）；
+ *     玩家点屏幕：正在打字则立刻补全，否则切到下一句缓存；
+ *   - 选择：阻塞到玩家点某个选项，结果写到指令里填的逻辑变量（覆盖旧值）；
+ *     选完后黑框继续显示，内容变成被选中的那一项，之后仍可点击切下一句；
+ *   - 名字牌每次换行都会更新。
  */
 public class FastDialog {
 
-    public static final int TALK = 0;
-    public static final int CHOOSE = 1;
-
-    /** dialog 指令当前是否在等待玩家点击 */
     public static DialogRoot current;
     public static int tokenSeq;
     /** 选择模式最近一次点中的选项（1 起，0 = 没选） */
     public static int lastChoice;
 
-    public static int showTalk(String name, String text) {
-        return open(name, text, null);
+    public static void pushTalk(String name, String text) {
+        if (text == null || text.length() == 0) {
+            return;
+        }
+        ensure().push(name, text);
     }
 
     public static int showChoice(String name, String[] options) {
-        return open(name, null, options);
-    }
-
-    public static int open(String name, String text, String[] options) {
-        close();
-        tokenSeq++;
-        lastChoice = 0;
-
-        DialogRoot root = new DialogRoot(tokenSeq, name, text, options);
-        current = root;
-        Core.scene.add(root);
-        return tokenSeq;
+        return ensure().beginChoice(name, options);
     }
 
     public static boolean isWaiting(int token) {
         return current != null && current.parent != null
             && current.token == token && current.waiting;
-    }
-
-    /** 同一个名字 + 同一段文字是否已经在显示（覆盖模式避免每帧重建、反复播放上升动画） */
-    public static boolean sameTalk(String name, String text) {
-        return current != null && current.parent != null && !current.choice
-            && current.speaker.equals(name == null ? "" : name)
-            && current.fullText.equals(text == null ? "" : text);
     }
 
     public static void close() {
@@ -78,35 +62,61 @@ public class FastDialog {
         }
     }
 
+    public static DialogRoot ensure() {
+        if (current != null && current.parent == null) {
+            current = null;
+        }
+        if (current == null || current.closing) {
+            current = new DialogRoot();
+            Core.scene.add(current);
+        }
+        return current;
+    }
+
+    /** 一句缓存 */
+    public static class Line {
+        public String name;
+        public String text;
+
+        public Line(String name, String text) {
+            this.name = name == null ? "" : name;
+            this.text = text == null ? "" : text;
+        }
+
+        public boolean same(String n, String t) {
+            return name.equals(n == null ? "" : n) && text.equals(t == null ? "" : t);
+        }
+    }
+
     public static class DialogRoot extends Table {
 
         public int token;
-        public boolean waiting = true;
-        public boolean choice;
-        public boolean typing;
+        public boolean waiting;
+        public boolean choiceMode;
         public boolean closing;
+        public boolean typing;
+        public boolean justPicked;
+        public boolean firstShow = true;
+
+        public String speaker = "";
         public String fullText = "";
         public int revealed;
         public float acc;
-        public String speaker = "";
         public String[] opts;
+
+        public Seq<Line> queue = new Seq<>();
 
         public Table box;
         public Table plate;
-        public Label label;
+        public Label plateLabel;
         public Label arrow;
+        public Label label;
         public Table optionsTable;
 
         public float pad;
         public float textWidth;
 
-        public DialogRoot(int token, String speaker, String text, String[] options) {
-            this.token = token;
-            this.speaker = speaker == null ? "" : speaker;
-            this.fullText = text == null ? "" : text;
-            this.opts = options;
-            this.choice = options != null;
-
+        public DialogRoot() {
             setFillParent(true);
             touchable = Touchable.enabled;
 
@@ -117,7 +127,7 @@ public class FastDialog {
                 }
             });
 
-            build();
+            buildShell();
             update(new Runnable() {
                 @Override
                 public void run() {
@@ -126,14 +136,105 @@ public class FastDialog {
             });
         }
 
-        public void build() {
+        public void buildShell() {
             pad = Math.max(8f, Scl.scl(10f));
 
+            box = new Table(Styles.black8);
+            box.margin(pad);
+            // childrenOnly：空白处点不到黑框（落到根节点的点击监听上），但里面的选项按钮可以点
+            box.touchable = Touchable.childrenOnly;
+            addChild(box);
+
+            // 左上角的小黑框（名字）
+            plate = new Table(Styles.black);
+            plate.margin(Math.max(3f, Scl.scl(4f)));
+            plate.touchable = Touchable.disabled;
+            plateLabel = new Label("", Styles.outlineLabel);
+            plate.add(plateLabel).pad(2f);
+            plate.pack();
+            plate.visible = false;
+            addChild(plate);
+
+            // 还有下一句缓存时的小三角
+            arrow = new Label("▼", Styles.outlineLabel);
+            arrow.setFontScale(0.8f);
+            arrow.pack();
+            arrow.visible = false;
+            addChild(arrow);
+        }
+
+        public void push(String name, String text) {
+            if (text == null || text.length() == 0) {
+                return;
+            }
+            String n = name == null ? "" : name;
+
+            // 同一句在当前行重复（处理器每帧执行）时不要刷屏
+            if (!choiceMode && fullText.length() > 0 && n.equals(speaker) && text.equals(fullText)) {
+                return;
+            }
+            if (queue.size > 0 && queue.peek().same(n, text)) {
+                return;
+            }
+
+            if (fullText.length() == 0 && queue.size == 0 && !choiceMode && !typing) {
+                showLine(n, text);
+                return;
+            }
+
+            if (queue.size < 64) {
+                queue.add(new Line(n, text));
+            }
+        }
+
+        public int beginChoice(String name, String[] options) {
+            speaker = name == null ? "" : name;
+            fullText = "";
+            revealed = 0;
+            acc = 0;
+            typing = false;
+            opts = options;
+            choiceMode = true;
+            waiting = true;
+            FastDialog.lastChoice = 0;
+            token = ++FastDialog.tokenSeq;
+
+            plateLabel.setText(speaker);
+            plate.pack();
+            plate.visible = speaker.length() > 0;
+
+            rebuildBox();
+            return token;
+        }
+
+        public void showLine(String name, String text) {
+            speaker = name == null ? "" : name;
+            fullText = text == null ? "" : text;
+            revealed = 0;
+            acc = 0;
+            typing = fullText.length() > 0;
+            choiceMode = false;
+            waiting = false;
+
+            plateLabel.setText(speaker);
+            plate.pack();
+            plate.visible = speaker.length() > 0;
+
+            arrow.visible = false;
+            rebuildBox();
+        }
+
+        public void rebuildBox() {
+            if (box == null) {
+                return;
+            }
+            box.clearChildren();
+
             float sceneW = Core.scene.getWidth();
-            float sceneH = Core.scene.getHeight();
             if (sceneW <= 0f) {
                 sceneW = Core.graphics.getWidth();
             }
+            float sceneH = Core.scene.getHeight();
             if (sceneH <= 0f) {
                 sceneH = Core.graphics.getHeight();
             }
@@ -145,75 +246,65 @@ public class FastDialog {
             float textW = minBoxW - pad * 2f;
             float textH = lineH * 3f;
 
-            if (!choice && fullText.length() > 0) {
-                GlyphLayout gl = new GlyphLayout();
-                gl.setText(Fonts.outline, fullText, Color.white, maxTextW, Align.left, true);
-                textW = Mathf.clamp(gl.width, minBoxW - pad * 2f, maxTextW);
-                textH = Math.max(gl.height, lineH * 3f);
-            } else if (choice) {
-                textW = Math.max(minBoxW - pad * 2f, maxTextW * 0.8f);
-            }
-            this.textWidth = textW;
-
-            box = new Table(Styles.black8);
-            box.margin(pad);
-            // childrenOnly：空处点不到黑框（落到根节点的点击监听上），但里面的选项按钮可以点
-            box.touchable = Touchable.childrenOnly;
-
-            if (choice) {
+            if (choiceMode) {
+                textW = Math.max(textW, maxTextW * 0.8f);
                 optionsTable = new Table();
                 optionsTable.touchable = Touchable.childrenOnly;
-                for (int i = 0; i < opts.length; i++) {
-                    final int index = i;
-                    String text = opts[i] == null ? "" : opts[i];
-                    TextButton button = new TextButton(text, Styles.logict);
-                    button.clicked(new Runnable() {
-                        @Override
-                        public void run() {
-                            pick(index);
-                        }
-                    });
-                    optionsTable.add(button).growX().height(Scl.scl(40f)).pad(3f).row();
+                if (opts != null) {
+                    for (int i = 0; i < opts.length; i++) {
+                        final int index = i;
+                        String text = opts[i] == null ? "" : opts[i];
+                        TextButton button = new TextButton(text, Styles.logict);
+                        button.clicked(new Runnable() {
+                            @Override
+                            public void run() {
+                                pick(index);
+                            }
+                        });
+                        optionsTable.add(button).growX().height(Scl.scl(40f)).pad(3f).row();
+                    }
                 }
                 box.add(optionsTable).width(textW).left();
+                label = null;
             } else {
+                if (fullText.length() > 0) {
+                    GlyphLayout gl = new GlyphLayout();
+                    gl.setText(Fonts.outline, fullText, Color.white, maxTextW, Align.left, true);
+                    textW = Mathf.clamp(gl.width, minBoxW - pad * 2f, maxTextW);
+                    textH = Math.max(gl.height, lineH * 3f);
+                }
                 label = new Label("", Styles.outlineLabel);
                 label.setWrap(true);
                 label.setAlignment(Align.topLeft);
                 box.add(label).width(textW).height(textH).left();
-
-                typing = fullText.length() > 0;
-                if (!typing) {
-                    label.setText("");
-                }
             }
 
+            this.textWidth = textW;
             box.pack();
-            box.setPosition((sceneW - box.getWidth()) / 2f, Math.max(Scl.scl(50f), sceneH * 0.10f));
-            box.moveBy(0f, -box.getHeight());
-            box.actions(Actions.moveBy(0f, box.getHeight(), 0.35f, Interp.pow2Out));
+            positionBox();
 
-            addChild(box);
-
-            // 左上角的小黑框（名字）
-            plate = new Table(Styles.black);
-            plate.margin(Math.max(3f, Scl.scl(4f)));
-            plate.touchable = Touchable.disabled;
-            plate.add(new Label(speaker, Styles.outlineLabel)).pad(2f);
-            plate.pack();
-            plate.visible = speaker.length() > 0;
-            addChild(plate);
-
-            // 等待点击的小三角
-            arrow = new Label("▼", Styles.outlineLabel);
-            arrow.setFontScale(0.8f);
-            arrow.pack();
-            arrow.visible = false;
-            addChild(arrow);
-
-            if (typing) {
-                label.setText("");
+            if (firstShow) {
+                firstShow = false;
+                box.moveBy(0f, -box.getHeight());
+                box.actions(Actions.moveBy(0f, box.getHeight(), 0.35f, Interp.pow2Out));
             }
+        }
+
+        public void positionBox() {
+            float sceneW = Core.scene.getWidth();
+            if (sceneW <= 0f) {
+                sceneW = Core.graphics.getWidth();
+            }
+            float sceneH = Core.scene.getHeight();
+            if (sceneH <= 0f) {
+                sceneH = Core.graphics.getHeight();
+            }
+            box.setPosition((sceneW - box.getWidth()) / 2f, Math.max(Scl.scl(50f), sceneH * 0.10f));
+        }
+
+        /** 当前是否有需要玩家点击推进的东西（有空缓存 / 正在打字 / 等着选项） */
+        public boolean wantsInput() {
+            return choiceMode ? waiting : (typing || queue.size > 0);
         }
 
         public void tick() {
@@ -224,12 +315,19 @@ public class FastDialog {
                 return;
             }
 
-            if (Vars.state.isMenu() || !Vars.ui.hudfrag.shown) {
+            // 只有回主菜单才自动关；HUD 隐藏（过场）时对话框按用户要求继续常驻
+            if (Vars.state.isMenu()) {
                 closeNow();
                 return;
             }
 
-            // 打字机
+            // 有下一步可推进时才吃点击；空闲时让点击穿透，玩家可以继续操作
+            boolean want = wantsInput();
+            touchable = want ? Touchable.enabled : Touchable.disabled;
+            if (box != null) {
+                box.touchable = want ? Touchable.childrenOnly : Touchable.disabled;
+            }
+
             if (typing && label != null) {
                 acc += Time.delta * 45f;
                 int guard = 0;
@@ -246,20 +344,20 @@ public class FastDialog {
                 }
             }
 
-            float bx = box.x;
-            float by = box.y;
-
             if (plate != null && plate.visible) {
-                plate.setPosition(bx + Scl.scl(8f), by + box.getHeight() - plate.getHeight() * 0.5f);
+                plate.setPosition(box.x + Scl.scl(8f), box.y + box.getHeight() - plate.getHeight() * 0.5f);
             }
 
             if (arrow != null) {
-                arrow.visible = waiting && !typing && !choice;
+                arrow.visible = !choiceMode && !typing && queue.size > 0;
                 if (arrow.visible) {
-                    arrow.setPosition(bx + box.getWidth() - arrow.getWidth() - Scl.scl(10f), by + Scl.scl(4f));
+                    arrow.setPosition(box.x + box.getWidth() - arrow.getWidth() - Scl.scl(10f), box.y + Scl.scl(4f));
                     arrow.color.a = 0.35f + 0.65f * Mathf.absin(Time.time, 0.8f, 1f);
                 }
             }
+
+            // 选项按钮点击后冒泡到根节点的那一次点击要吞掉，下一帧自动解除
+            justPicked = false;
         }
 
         /** 从 from 开始的下一个安全下标：颜色标签 [xxx] 一次整段显示，避免打出半个标签 */
@@ -277,7 +375,14 @@ public class FastDialog {
         }
 
         public void onScreenClick() {
-            if (closing || choice) {
+            if (closing) {
+                return;
+            }
+            if (justPicked) {
+                justPicked = false;
+                return;
+            }
+            if (choiceMode && waiting) {
                 return;
             }
             if (typing) {
@@ -288,18 +393,23 @@ public class FastDialog {
                 }
                 return;
             }
-            if (waiting) {
-                closeNow();
+            if (queue.size > 0) {
+                Line line = queue.remove(0);
+                showLine(line.name, line.text);
             }
         }
 
         public void pick(int index) {
-            if (closing) {
+            if (closing || !choiceMode || !waiting) {
                 return;
             }
-            FastDialog.lastChoice = index + 1;
             waiting = false;
-            closeNow();
+            choiceMode = false;
+            FastDialog.lastChoice = index + 1;
+            justPicked = true;
+
+            String chosen = opts != null && index >= 0 && index < opts.length && opts[index] != null ? opts[index] : "";
+            showLine(speaker, chosen);
         }
 
         public void closeNow() {
@@ -308,6 +418,7 @@ public class FastDialog {
             }
             closing = true;
             waiting = false;
+            queue.clear();
             if (FastDialog.current == this) {
                 FastDialog.current = null;
             }

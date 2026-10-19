@@ -18,6 +18,7 @@ import mindustry.logic.LAssembler;
 import mindustry.logic.LCategory;
 import mindustry.logic.LExecutor.LInstruction;
 import mindustry.logic.LStatement;
+import mindustry.logic.LVar;
 import mindustry.ui.Styles;
 
 /**
@@ -28,10 +29,10 @@ import mindustry.ui.Styles;
  *
  * 类型：
  *   notify / announce / toast / mission —— 原版四种消息位置；
- *   comm   —— 通信特效：屏幕上下 45° 条纹带 + <> 滑动 + 「通讯开始 / 通讯终止」，
- *             追加两个 token：start|stop 颜色；
- *   dialog —— 真正的对话框：底部黑框、名字牌、打字机、点击翻页，
- *             追加：talk|choose|pause 名字 [选项...]。
+ *   comm   —— 通信特效（默认阻塞满 3 秒）：屏幕上下 45° 条纹带 + <> 滑动 + 文字，
+ *             追加两个 token：start|stop 颜色（开始默认淡黄，终止固定浅红）；
+ *   dialog —— 常驻对话框：底部黑框 + 名字牌 + 打字机 + 缓存队列，只有暂停会关闭，
+ *             追加：talk|choose|pause 名字 [变量 数量 选项...]。
  */
 public class FastMessageStatement extends LStatement {
 
@@ -58,11 +59,13 @@ public class FastMessageStatement extends LStatement {
 
     // 通信
     public boolean commStop = false;
-    public String commColor = "4db2ffff";
+    public String commColor = "fff59dff";
 
     // 对话框
     public int dialogMode = D_TALK;
     public String name = "";
+    /** 选择模式：把点中的序号（1 起）写进这个逻辑变量，覆盖旧值 */
+    public String choiceVar = "sepkerchoice";
     public Seq<String> options = new Seq<>();
 
     /** 必须是 public —— 匿名内部类会调用它（旧 ART 不支持 nestmate） */
@@ -130,7 +133,7 @@ public class FastMessageStatement extends LStatement {
             if (v.length() > 0) return Color.valueOf(v);
         } catch (Throwable ignored) {
         }
-        return Color.valueOf("4db2ffff");
+        return Color.valueOf("fff59dff");
     }
 
     public void ensureOptions() {
@@ -217,7 +220,8 @@ public class FastMessageStatement extends LStatement {
                         @Override
                         public void run() {
                             kind = k;
-                            if (k == K_DIALOG && cover) {
+                            // 通信固定阻塞 3 秒、对话框普通模式不阻塞；写出的 cover/wait 只作记录
+                            if ((k == K_DIALOG || k == K_COMM) && cover) {
                                 cover = false;
                             }
                             if (kind == K_DIALOG && dialogMode == D_CHOOSE) {
@@ -246,25 +250,30 @@ public class FastMessageStatement extends LStatement {
             }
         }).size(110f, 40f).pad(4f);
 
-        table.add(new Image(Tex.whiteui)).size(20f).color(commColor()).padLeft(4f).padRight(4f);
+        if (commStop) {
+            // 终止固定浅红，不给改色（和开始的自定义颜色区分开）
+            table.add(new Image(Tex.whiteui)).size(20f).color(Color.valueOf("ff8a8aff")).padLeft(4f).padRight(4f);
+        } else {
+            table.add(new Image(Tex.whiteui)).size(20f).color(commColor()).padLeft(4f).padRight(4f);
 
-        table.button(new Cons<Button>() {
-            @Override
-            public void get(Button b) {
-                b.image(Icon.pencilSmall);
-            }
-        }, Styles.logict, new Runnable() {
-            @Override
-            public void run() {
-                Vars.ui.picker.show(commColor(), new Cons<Color>() {
-                    @Override
-                    public void get(Color c) {
-                        commColor = c.toString();
-                        rebuild(table);
-                    }
-                });
-            }
-        }).size(40f, 40f).pad(2f);
+            table.button(new Cons<Button>() {
+                @Override
+                public void get(Button b) {
+                    b.image(Icon.pencilSmall);
+                }
+            }, Styles.logict, new Runnable() {
+                @Override
+                public void run() {
+                    Vars.ui.picker.show(commColor(), new Cons<Color>() {
+                        @Override
+                        public void get(Color c) {
+                            commColor = c.toString();
+                            rebuild(table);
+                        }
+                    });
+                }
+            }).size(40f, 40f).pad(2f);
+        }
     }
 
     public void buildDialog(final Table table) {
@@ -302,6 +311,15 @@ public class FastMessageStatement extends LStatement {
     public Table buildOptions(final Table rootTable) {
         Table t = new Table();
 
+        // 选择结果写进哪个变量（覆盖旧值）
+        fields(t, loc("fastmsg.variable", "variable"), choiceVar, new Cons<String>() {
+            @Override
+            public void get(String s) {
+                choiceVar = s;
+            }
+        });
+        t.row();
+
         for (int i = 0; i < options.size; i++) {
             final int index = i;
             StringBuilder label = new StringBuilder(loc("fastmsg.option", "option"));
@@ -320,12 +338,12 @@ public class FastMessageStatement extends LStatement {
             }
         }
 
-        // 右下角的加号：点一下多加一个选项（最多 9 个：LParser 单行上限 16 token）
+        // 右下角的加号：点一下多加一个选项（最多 8 个：LParser 单行 16 token，变量/数量各占一个）
         t.row();
         t.button("+", Styles.logict, new Runnable() {
             @Override
             public void run() {
-                if (options.size >= 9) {
+                if (options.size >= 8) {
                     return;
                 }
                 options.add("");
@@ -343,7 +361,15 @@ public class FastMessageStatement extends LStatement {
             d = "3";
         }
         String[] opts = options == null ? new String[0] : options.toArray(String.class);
-        return new FastMessageI(kind, builder.var(d), cover, commStop, commColor, dialogMode, name == null ? "" : name, opts);
+
+        LVar out = null;
+        String varName = choiceVar == null ? "" : choiceVar.trim();
+        if (kind == K_DIALOG && dialogMode == D_CHOOSE && varName.length() > 0) {
+            // builder.var 会在变量不存在时创建它，之后选择完成直接 setnum 覆盖
+            out = builder.var(varName);
+        }
+
+        return new FastMessageI(kind, builder.var(d), cover, commStop, commColor, dialogMode, name == null ? "" : name, opts, out);
     }
 
     @Override
@@ -356,13 +382,14 @@ public class FastMessageStatement extends LStatement {
 
         if (kind == K_COMM) {
             out.append(commStop ? " stop " : " start ");
-            out.append(commColor == null ? "4db2ffff" : commColor);
+            out.append(commColor == null || commColor.trim().isEmpty() ? "fff59dff" : commColor);
         } else if (kind == K_DIALOG) {
             out.append(' ').append(dialogModeName(dialogMode));
             out.append(' ').append(quote(name));
             if (dialogMode == D_CHOOSE && options != null) {
-                // 选项数量必须显式写出：自定义解析器拿不到本行 token 数（LParser 的数组是 16 长且带上一行残留）
-                int n = Math.min(options.size, 9);
+                // 变量名与数量必须显式写出：自定义解析器拿不到本行 token 数（LParser 的数组是 16 长且带上一行残留）
+                out.append(' ').append(quote(choiceVar));
+                int n = Math.min(options.size, 8);
                 out.append(' ').append(n);
                 for (int i = 0; i < n; i++) {
                     out.append(' ').append(quote(options.get(i)));

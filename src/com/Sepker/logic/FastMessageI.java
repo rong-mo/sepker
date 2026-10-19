@@ -13,16 +13,16 @@ import mindustry.logic.MessageType;
  * fastmessage 指令实现。
  *
  * 原版四种消息（notify/announce/toast/mission）：
- *   - @cover（默认）：先移除上一条，再显示新的一条 → 可以每帧替换，不阻塞；
- *   - @wait：与原版一致，已有消息在显示时阻塞处理器（exec.yield）。
+ *   - @cover：先移除上一条，再显示新的一条 → 可以每帧替换，不阻塞；
+ *   - @wait：与原版一致，已有消息在显示时阻塞处理器。
  *
- * comm：播放通信特效（3 秒），start 用自定义颜色，stop 固定浅红。
+ * comm：播放通信特效，默认阻塞满 3 秒动画（开始 / 终止都一样）；
+ *       开始用指令里的颜色（默认淡黄），终止固定浅红。
  *
  * dialog：
- *   - talk：底部黑框 + 名字牌 + 打字机，wait 模式下阻塞到玩家点击；
- *   - choose：选项按钮，阻塞到玩家点选，序号写入逻辑变量 sepkerchoice（1 起）；
- *   - pause：直接关掉对话框。
- * 文本同样取自 exec.textBuffer，执行后清空。
+ *   - talk：不阻塞，把这一句压进常驻对话框的缓存队列，点击屏幕切换下一句；
+ *   - choose：阻塞到玩家点选，序号写进指令里填的逻辑变量；
+ *   - pause：关闭对话框（清空缓存）。
  */
 public class FastMessageI implements LInstruction {
 
@@ -31,20 +31,24 @@ public class FastMessageI implements LInstruction {
     public boolean cover = true;
 
     public boolean commStop = false;
-    public String commColor = "4db2ffff";
+    public String commColor = "fff59dff";
 
     public int dialogMode = FastMessageStatement.D_TALK;
     public String name = "";
     public String[] options;
+    /** 选择结果写进这个变量（由指令里的「变量」输入框决定，可为 null） */
+    public LVar outVar;
 
-    /** 当前 dialog 的 token（只在阻塞模式下使用） */
+    /** 通信动画的令牌（阻塞用） */
+    public transient int pendingCommToken;
+    /** 选择模式的令牌（阻塞用） */
     public transient int pendingToken;
 
     public FastMessageI() {
     }
 
     public FastMessageI(int kind, LVar duration, boolean cover, boolean commStop, String commColor,
-                        int dialogMode, String name, String[] options) {
+                        int dialogMode, String name, String[] options, LVar outVar) {
         this.kind = kind;
         this.duration = duration;
         this.cover = cover;
@@ -53,6 +57,7 @@ public class FastMessageI implements LInstruction {
         this.dialogMode = dialogMode;
         this.name = name;
         this.options = options;
+        this.outVar = outVar;
     }
 
     public MessageType messageType() {
@@ -102,15 +107,12 @@ public class FastMessageI implements LInstruction {
     public void runVanilla(LExecutor exec) {
         MessageType type = messageType();
 
-        // @wait：和原版一样阻塞
         if (!cover && FastMessages.busy(type.ordinal())) {
             block(exec);
             return;
         }
 
         String raw = exec.textBuffer.toString();
-
-        // 缓冲区真的为空时直接跳过，不要弹一个空框
         if (raw.isEmpty()) {
             return;
         }
@@ -136,7 +138,18 @@ public class FastMessageI implements LInstruction {
     }
 
     public void runComm(LExecutor exec) {
-        Color color = Color.valueOf("4db2ffff");
+        // 动画还在播：阻塞到它结束，保证处理器真的等满 3 秒
+        if (pendingCommToken != 0) {
+            if (FastComm.isPlaying(pendingCommToken)) {
+                block(exec);
+                return;
+            }
+            pendingCommToken = 0;
+            exec.textBuffer.setLength(0);
+            return;
+        }
+
+        Color color = Color.valueOf("fff59dff");
         String raw = commColor == null ? "" : commColor.trim();
         try {
             if (raw.startsWith("%") || raw.startsWith("#")) {
@@ -148,8 +161,13 @@ public class FastMessageI implements LInstruction {
         } catch (Throwable ignored) {
         }
 
-        FastComm.show(commStop, color);
+        int token = FastComm.show(commStop, color);
         exec.textBuffer.setLength(0);
+
+        if (token != 0) {
+            pendingCommToken = token;
+            block(exec);
+        }
     }
 
     public void runDialog(LExecutor exec) {
@@ -161,36 +179,32 @@ public class FastMessageI implements LInstruction {
         }
 
         boolean choosing = dialogMode == FastMessageStatement.D_CHOOSE;
-        boolean blocking = choosing || !cover;
-
-        if (blocking && pendingToken != 0) {
-            if (FastDialog.isWaiting(pendingToken)) {
-                block(exec);
-                return;
-            }
-
-            int choice = FastDialog.lastChoice;
-            pendingToken = 0;
-            FastDialog.lastChoice = 0;
-
-            if (choice > 0) {
-                LVar out = exec.optionalVar("sepkerchoice");
-                if (out != null) {
-                    out.setnum(choice);
-                }
-            }
-
-            exec.textBuffer.setLength(0);
-            return;
-        }
 
         if (choosing) {
-            String[] opts = options == null ? new String[0] : options;
-            if (opts.length == 0) {
+            if (pendingToken != 0) {
+                if (FastDialog.isWaiting(pendingToken)) {
+                    block(exec);
+                    return;
+                }
+
+                int choice = FastDialog.lastChoice;
+                pendingToken = 0;
+                FastDialog.lastChoice = 0;
+
+                if (choice > 0 && outVar != null) {
+                    outVar.setnum(choice);
+                }
+
                 exec.textBuffer.setLength(0);
                 return;
             }
-            pendingToken = FastDialog.showChoice(name, opts);
+
+            if (options == null || options.length == 0) {
+                exec.textBuffer.setLength(0);
+                return;
+            }
+
+            pendingToken = FastDialog.showChoice(name, options);
             if (FastDialog.isWaiting(pendingToken)) {
                 block(exec);
             }
@@ -198,6 +212,7 @@ public class FastMessageI implements LInstruction {
             return;
         }
 
+        // 普通对话：不阻塞，压进队列，由点击推进
         String raw = exec.textBuffer.toString();
         if (raw.isEmpty()) {
             return;
@@ -205,16 +220,6 @@ public class FastMessageI implements LInstruction {
 
         String text = formatText(raw);
         exec.textBuffer.setLength(0);
-
-        if (blocking) {
-            pendingToken = FastDialog.showTalk(name, text);
-            if (FastDialog.isWaiting(pendingToken)) {
-                block(exec);
-            }
-        } else {
-            if (!FastDialog.sameTalk(name, text)) {
-                FastDialog.showTalk(name, text);
-            }
-        }
+        FastDialog.pushTalk(name, text);
     }
 }
