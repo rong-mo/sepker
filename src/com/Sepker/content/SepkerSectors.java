@@ -13,12 +13,16 @@ import mindustry.type.SectorPreset;
 public class SepkerSectors {
     public static SectorPreset main1, main2, main3, main4;
 
-    // ⭐ 扇区在星球网格上的位置（PlanetGrid.create(2) 共 92 格）。
-    //    选的是同一片经线（约 -20°）上互相相邻的四格，保证四关在星球视图里连成一片：
-    //      91 (23.5°N,-21.6°) - 12 (0.0°,-20.9°) - 87 (47.4°N,-17.9°) - 62 (58.5°N,-49.7°)
-    //    相邻关系：12↔91、91↔87、87↔62。main2 压在赤道，main1/3/4 都在北半球；
-    //    将来往南推进时，从 main2 往 90 / 77 / 81 / 33 这几格方向加新扇区即可继续连片。
-    public static final int MAIN1_SECTOR = 91, MAIN2_SECTOR = 12, MAIN3_SECTOR = 87, MAIN4_SECTOR = 62;
+    // ⭐ 扇区在星球网格上的位置（PlanetGrid.create(3) 共 272 格）。
+    //    走的是「往西南下到赤道、再从另一侧往西北爬回北半球」的折线，四格首尾相邻：
+    //      main1 244 (12°N,  14°E)  ┐
+    //      main2 243 ( 0°,     7°E)  ├ 243 的邻居里同时有 244 和 90，所以在赤道处拐弯
+    //      main3 90  (11°N,    0°)   │
+    //      main4 151 (22°N,  -7°W)  ┘
+    //    相邻关系（实测 243.near = [244 27 242 77 157 90]、244.near 含 243 与 90、90.near 含 151）：
+    //      244↔243、243↔90、90↔151。main2 压在赤道，其余都在北半球。
+    //    将来往南推进时，从 main2 接 77(-11°,0°) / 242(-12°,14°) / 27(0°,21°) 继续连片。
+    public static final int MAIN1_SECTOR = 244, MAIN2_SECTOR = 243, MAIN3_SECTOR = 90, MAIN4_SECTOR = 151;
 
     public static void load() {
         // ⭐ 拼 mod 前缀（FileMapGenerator 会剥离它）

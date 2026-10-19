@@ -23,7 +23,9 @@ public class SepkerPlanet {
     public static Planet sepker;
 
     public static void load() {
-        sepker = new Planet("sepker", Planets.sun, 1f, 2) {{
+        // 第 4 个参数是网格细分等级：0=12 格、1=32、2=92、3=272、4=812。
+        // 用 3 是为了让扇区排得密一些（相邻格间距比 2 小约 1.7 倍），便于做连贯的战线。
+        sepker = new Planet("sepker", Planets.sun, 1f, 3) {{
 
             visible = true;
             accessible = true;
