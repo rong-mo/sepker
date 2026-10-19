@@ -15,8 +15,8 @@
 [lightgray]  - 对话不阻塞：每执行一次就把这一句压进缓存队列；点击屏幕或名字右侧的「继续」按钮先补全当前行，再点一下切到下一句缓存
 [lightgray]  - 选择也排进同一个缓存队列：等前面的句子都切完才出现；在它出现并被点选之前，处理器一直阻塞
 [lightgray]  - 选择：把正文换成选项按钮；指令里每个选项一个输入框，右下角「+」可继续添加（2~8 个）
-[lightgray]  - 指令里新增「变量」输入框：点选结果（1 起）写进该逻辑变量并覆盖旧值（默认 sepkerchoice）
-[lightgray]  - 暂停：关闭对话框并清空缓存
+[lightgray]  - 指令里新增「变量」输入框：点选结果以字符串写进该逻辑变量（选项文字本身，覆盖旧值；逻辑里可直接和 "选项文字" 比较）
+[lightgray]  - 暂停：也排在缓存末尾，等前面的句子都点完才关闭（期间处理器阻塞）；没有缓存时立即关闭
 [lightgray]  - 旧的 fastmessage 写法（notify / announce / toast / mission）保持兼容
 
 [white][English]
@@ -35,8 +35,8 @@
 [lightgray]  - Talk does not block: each execution queues that line into a buffer; tap the screen or the "Continue" button right of the name to finish the current line, tap again for the next queued line
 [lightgray]  - Choices join the same queue: they appear only after all earlier queued lines have been advanced, and the processor stays blocked until the choice is shown and picked
 [lightgray]  - Choose: the text is replaced by option buttons; one text field per option in the instruction, "+" at the bottom-right adds more (2-8)
-[lightgray]  - A new "variable" field stores the chosen index (1-based) into that logic variable, overwriting its old value (default sepkerchoice)
-[lightgray]  - Pause: closes the dialog and clears the queue
+[lightgray]  - A new "variable" field stores the chosen option text as a string into that logic variable, overwriting its old value (default sepkerchoice; compare directly with "option text")
+[lightgray]  - Pause: queued after the cached lines; closes only after they have all been advanced (the processor stays blocked meanwhile); closes immediately when there is no cache
 [lightgray]  - The old fastmessage syntax (notify / announce / toast / mission) still works
 
 [blue]v0.6.10

@@ -64,7 +64,7 @@ public class FastMessageStatement extends LStatement {
     // 对话框
     public int dialogMode = D_TALK;
     public String name = "";
-    /** 选择模式：把点中的序号（1 起）写进这个逻辑变量，覆盖旧值 */
+    /** 选择模式：把点中的选项文字（字符串）写进这个逻辑变量，覆盖旧值 */
     public String choiceVar = "sepkerchoice";
     public Seq<String> options = new Seq<>();
 

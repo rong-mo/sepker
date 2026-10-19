@@ -21,8 +21,8 @@ import mindustry.logic.MessageType;
  *
  * dialog：
  *   - talk：不阻塞，把这一句压进常驻对话框的缓存队列，点击屏幕切换下一句；
- *   - choose：阻塞到玩家点选，序号写进指令里填的逻辑变量；
- *   - pause：关闭对话框（清空缓存）。
+ *   - choose：阻塞到玩家点选，选项文字（字符串）写进指令里填的逻辑变量；
+ *   - pause：排在缓存末尾，等前面的句子都点完才关闭（期间阻塞），清空缓存。
  */
 public class FastMessageI implements LInstruction {
 
@@ -172,9 +172,23 @@ public class FastMessageI implements LInstruction {
 
     public void runDialog(LExecutor exec) {
         if (dialogMode == FastMessageStatement.D_PAUSE) {
-            FastDialog.close();
-            pendingToken = 0;
+            // 暂停也排队：等缓存里的句子都被点完才真正关闭，期间阻塞处理器
+            if (pendingToken != 0) {
+                if (FastDialog.isWaiting(pendingToken)) {
+                    block(exec);
+                    return;
+                }
+                pendingToken = 0;
+                exec.textBuffer.setLength(0);
+                return;
+            }
+
+            int token = FastDialog.requestClose();
             exec.textBuffer.setLength(0);
+            if (token != 0) {
+                pendingToken = token;
+                block(exec);
+            }
             return;
         }
 
@@ -189,13 +203,16 @@ public class FastMessageI implements LInstruction {
 
                 // 只有「自己这一次选择」的结果才算数（别的选择可能已经覆盖了 lastChoice）
                 int finishedToken = pendingToken;
-                int choice = FastDialog.lastChoiceToken == finishedToken ? FastDialog.lastChoice : 0;
+                boolean mine = FastDialog.lastChoiceToken == finishedToken;
+                String chosenText = FastDialog.lastChoiceText;
                 pendingToken = 0;
                 FastDialog.lastChoice = 0;
+                FastDialog.lastChoiceText = "";
                 FastDialog.lastChoiceToken = 0;
 
-                if (choice > 0 && outVar != null) {
-                    outVar.setnum(choice);
+                if (mine && outVar != null && !outVar.constant) {
+                    // 按字符串写进变量（选项文字本身），逻辑里可直接和 "选项文字" 比较
+                    outVar.setobj(chosenText == null ? "" : chosenText);
                 }
 
                 exec.textBuffer.setLength(0);

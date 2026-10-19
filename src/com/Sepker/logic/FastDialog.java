@@ -28,14 +28,17 @@ import mindustry.ui.Styles;
  *   - 选择也会排进同一个缓存队列，等它前面的句子都切完才显示；
  *     在它出现并被点选之前，处理器一直阻塞；
  *   - 选完后黑框继续显示被选中的那一项，后面仍可继续切缓存；
+ *   - 暂停也排在缓存末尾：等前面的句子都点完才关闭，期间处理器阻塞；
  *   - 名字牌右侧有一个「继续」按钮，比点屏幕更可靠。
  */
 public class FastDialog {
 
     public static DialogRoot current;
     public static int tokenSeq;
-    /** 选择模式最近一次点中的选项（1 起，0 = 没选） */
+    /** 选择模式最近一次点中的选项序号（1 起，0 = 没选） */
     public static int lastChoice;
+    /** 最近一次点中的选项文字（字符串，写进逻辑变量用） */
+    public static String lastChoiceText = "";
     /** 上一次选择对应的 token；指令用它判断这个结果是不是自己的 */
     public static int lastChoiceToken;
 
@@ -48,6 +51,14 @@ public class FastDialog {
 
     public static int showChoice(String name, String[] options) {
         return ensure().beginChoice(name, options);
+    }
+
+    /** 请求关闭；如果还有缓存/当前句，会排在队尾并等玩家点完。@return 0 = 已立即关闭 */
+    public static int requestClose() {
+        if (current == null || current.parent == null) {
+            return 0;
+        }
+        return current.beginClose();
     }
 
     public static boolean isWaiting(int token) {
@@ -79,6 +90,7 @@ public class FastDialog {
         public String text;
         public String[] options;
         public int token;
+        public boolean close;
 
         public Item(String name, String text, String[] options, int token) {
             this.name = name == null ? "" : name;
@@ -221,7 +233,24 @@ public class FastDialog {
             return token;
         }
 
+        public int beginClose() {
+            int token = ++FastDialog.tokenSeq;
+            Item item = new Item("", "", null, token);
+            item.close = true;
+            if (isFresh()) {
+                closeNow();
+                return 0;
+            }
+            // 关闭动作排在缓存末尾：等前面的句子都点完再关
+            queue.add(item);
+            return token;
+        }
+
         public void showItem(Item item) {
+            if (item.close) {
+                closeNow();
+                return;
+            }
             if (item.choice()) {
                 showChoiceItem(item);
             } else {
@@ -255,6 +284,7 @@ public class FastDialog {
             waiting = true;
             activeToken = item.token;
             FastDialog.lastChoice = 0;
+            FastDialog.lastChoiceText = "";
 
             updatePlate();
             arrow.visible = false;
@@ -488,6 +518,7 @@ public class FastDialog {
             justPicked = true;
 
             String chosen = opts != null && index >= 0 && index < opts.length && opts[index] != null ? opts[index] : "";
+            FastDialog.lastChoiceText = chosen;
             showLine(speaker, chosen);
         }
 
