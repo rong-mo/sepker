@@ -16,20 +16,19 @@ import arc.scene.ui.layout.Table;
 import arc.struct.Seq;
 import arc.util.Align;
 import arc.util.Time;
-import mindustry.Vars;
 import mindustry.ui.Fonts;
 import mindustry.ui.Styles;
 
 /**
  * 常驻对话框（fastmessage 的 dialog 类型）。
  *
- * 行为（按用户 2026-10-19 的修正）：
- *   - 黑框从第一次对话/选择开始一直显示，只有「暂停」或离开地图才关闭；
- *   - 普通对话：不阻塞处理器，每执行一次就把这一句追加进队列（缓存表）；
- *     玩家点屏幕：正在打字则立刻补全，否则切到下一句缓存；
- *   - 选择：阻塞到玩家点某个选项，结果写到指令里填的逻辑变量（覆盖旧值）；
- *     选完后黑框继续显示，内容变成被选中的那一项，之后仍可点击切下一句；
- *   - 名字牌每次换行都会更新。
+ * 行为：
+ *   - 黑框从第一次显示起一直留在底部，只有「暂停」或回主菜单才关闭；
+ *   - 普通对话不阻塞处理器，每句压进缓存队列；点击屏幕/「继续」按钮补全当前行，再点一下切下一句；
+ *   - 选择也会排进同一个缓存队列，等它前面的句子都切完才显示；
+ *     在它出现并被点选之前，处理器一直阻塞；
+ *   - 选完后黑框继续显示被选中的那一项，后面仍可继续切缓存；
+ *   - 名字牌右侧有一个「继续」按钮，比点屏幕更可靠。
  */
 public class FastDialog {
 
@@ -37,6 +36,8 @@ public class FastDialog {
     public static int tokenSeq;
     /** 选择模式最近一次点中的选项（1 起，0 = 没选） */
     public static int lastChoice;
+    /** 上一次选择对应的 token；指令用它判断这个结果是不是自己的 */
+    public static int lastChoiceToken;
 
     public static void pushTalk(String name, String text) {
         if (text == null || text.length() == 0) {
@@ -50,8 +51,7 @@ public class FastDialog {
     }
 
     public static boolean isWaiting(int token) {
-        return current != null && current.parent != null
-            && current.token == token && current.waiting;
+        return current != null && current.parent != null && current.hasToken(token);
     }
 
     public static void close() {
@@ -73,24 +73,27 @@ public class FastDialog {
         return current;
     }
 
-    /** 一句缓存 */
-    public static class Line {
+    /** 一条缓存：普通句子（options == null）或一次选择 */
+    public static class Item {
         public String name;
         public String text;
+        public String[] options;
+        public int token;
 
-        public Line(String name, String text) {
+        public Item(String name, String text, String[] options, int token) {
             this.name = name == null ? "" : name;
             this.text = text == null ? "" : text;
+            this.options = options;
+            this.token = token;
         }
 
-        public boolean same(String n, String t) {
-            return name.equals(n == null ? "" : n) && text.equals(t == null ? "" : t);
+        public boolean choice() {
+            return options != null;
         }
     }
 
     public static class DialogRoot extends Table {
 
-        public int token;
         public boolean waiting;
         public boolean choiceMode;
         public boolean closing;
@@ -98,17 +101,21 @@ public class FastDialog {
         public boolean justPicked;
         public boolean firstShow = true;
 
+        /** 当前正在显示、等待点选的选择 token；0 = 没有 */
+        public int activeToken;
+
         public String speaker = "";
         public String fullText = "";
         public int revealed;
         public float acc;
         public String[] opts;
 
-        public Seq<Line> queue = new Seq<>();
+        public Seq<Item> queue = new Seq<>();
 
         public Table box;
         public Table plate;
         public Label plateLabel;
+        public TextButton continueButton;
         public Label arrow;
         public Label label;
         public Table optionsTable;
@@ -141,7 +148,7 @@ public class FastDialog {
 
             box = new Table(Styles.black8);
             box.margin(pad);
-            // childrenOnly：空白处点不到黑框（落到根节点的点击监听上），但里面的选项按钮可以点
+            // childrenOnly：空处点不到黑框（落到根节点的点击监听上），但里面的选项按钮可以点
             box.touchable = Touchable.childrenOnly;
             addChild(box);
 
@@ -155,6 +162,19 @@ public class FastDialog {
             plate.visible = false;
             addChild(plate);
 
+            // 名字右侧的「继续」按钮
+            continueButton = new TextButton(Core.bundle.get("fastmsg.continue", "继续"), Styles.logict);
+            continueButton.pack();
+            continueButton.visible = false;
+            continueButton.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    event.stop();
+                    onScreenClick();
+                }
+            });
+            addChild(continueButton);
+
             // 还有下一句缓存时的小三角
             arrow = new Label("▼", Styles.outlineLabel);
             arrow.setFontScale(0.8f);
@@ -163,48 +183,50 @@ public class FastDialog {
             addChild(arrow);
         }
 
+        public boolean isFresh() {
+            return fullText.length() == 0 && queue.size == 0 && !typing && !choiceMode;
+        }
+
         public void push(String name, String text) {
             if (text == null || text.length() == 0) {
                 return;
             }
             String n = name == null ? "" : name;
 
-            // 同一句在当前行重复（处理器每帧执行）时不要刷屏
             if (!choiceMode && fullText.length() > 0 && n.equals(speaker) && text.equals(fullText)) {
                 return;
             }
-            if (queue.size > 0 && queue.peek().same(n, text)) {
+            if (queue.size > 0 && !queue.peek().choice()
+                && queue.peek().name.equals(n) && queue.peek().text.equals(text)) {
                 return;
             }
 
-            if (fullText.length() == 0 && queue.size == 0 && !choiceMode && !typing) {
-                showLine(n, text);
-                return;
-            }
-
-            if (queue.size < 64) {
-                queue.add(new Line(n, text));
+            Item item = new Item(n, text, null, 0);
+            if (isFresh()) {
+                showItem(item);
+            } else if (queue.size < 64) {
+                queue.add(item);
             }
         }
 
         public int beginChoice(String name, String[] options) {
-            speaker = name == null ? "" : name;
-            fullText = "";
-            revealed = 0;
-            acc = 0;
-            typing = false;
-            opts = options;
-            choiceMode = true;
-            waiting = true;
-            FastDialog.lastChoice = 0;
-            token = ++FastDialog.tokenSeq;
-
-            plateLabel.setText(speaker);
-            plate.pack();
-            plate.visible = speaker.length() > 0;
-
-            rebuildBox();
+            int token = ++FastDialog.tokenSeq;
+            Item item = new Item(name, "", options, token);
+            // 选择不抢当前显示的句子：排到缓存队尾，等前面都切完再出现
+            if (isFresh()) {
+                showItem(item);
+            } else if (queue.size < 64) {
+                queue.add(item);
+            }
             return token;
+        }
+
+        public void showItem(Item item) {
+            if (item.choice()) {
+                showChoiceItem(item);
+            } else {
+                showLine(item.name, item.text);
+            }
         }
 
         public void showLine(String name, String text) {
@@ -215,13 +237,55 @@ public class FastDialog {
             typing = fullText.length() > 0;
             choiceMode = false;
             waiting = false;
+            activeToken = 0;
 
+            updatePlate();
+            arrow.visible = false;
+            rebuildBox();
+        }
+
+        public void showChoiceItem(Item item) {
+            speaker = item.name;
+            fullText = "";
+            revealed = 0;
+            acc = 0;
+            typing = false;
+            opts = item.options;
+            choiceMode = true;
+            waiting = true;
+            activeToken = item.token;
+            FastDialog.lastChoice = 0;
+
+            updatePlate();
+            arrow.visible = false;
+            rebuildBox();
+        }
+
+        public void updatePlate() {
             plateLabel.setText(speaker);
             plate.pack();
             plate.visible = speaker.length() > 0;
+        }
 
-            arrow.visible = false;
-            rebuildBox();
+        /** 这个 token 对应的选择是否还在等（在队列里或在显示中） */
+        public boolean hasToken(int token) {
+            if (token <= 0) {
+                return false;
+            }
+            if (activeToken == token && waiting) {
+                return true;
+            }
+            for (int i = 0; i < queue.size; i++) {
+                if (queue.get(i).token == token) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** 当前是否有需要玩家点击推进的东西 */
+        public boolean wantsInput() {
+            return (choiceMode && waiting) || typing || queue.size > 0;
         }
 
         public void rebuildBox() {
@@ -302,11 +366,6 @@ public class FastDialog {
             box.setPosition((sceneW - box.getWidth()) / 2f, Math.max(Scl.scl(50f), sceneH * 0.10f));
         }
 
-        /** 当前是否有需要玩家点击推进的东西（有空缓存 / 正在打字 / 等着选项） */
-        public boolean wantsInput() {
-            return choiceMode ? waiting : (typing || queue.size > 0);
-        }
-
         public void tick() {
             if (closing || box == null) {
                 return;
@@ -316,7 +375,7 @@ public class FastDialog {
             }
 
             // 只有回主菜单才自动关；HUD 隐藏（过场）时对话框按用户要求继续常驻
-            if (Vars.state.isMenu()) {
+            if (mindustry.Vars.state.isMenu()) {
                 closeNow();
                 return;
             }
@@ -329,7 +388,8 @@ public class FastDialog {
             }
 
             if (typing && label != null) {
-                acc += Time.delta * 45f;
+                // 45 字/秒：Time.delta 是 tick，先换算成秒
+                acc += Time.delta * 45f / 60f;
                 int guard = 0;
                 while (acc >= 1f && revealed < fullText.length() && guard < 300) {
                     revealed = nextSafe(fullText, revealed);
@@ -348,11 +408,28 @@ public class FastDialog {
                 plate.setPosition(box.x + Scl.scl(8f), box.y + box.getHeight() - plate.getHeight() * 0.5f);
             }
 
+            if (continueButton != null) {
+                continueButton.visible = !choiceMode && (typing || queue.size > 0);
+                if (continueButton.visible) {
+                    float px;
+                    float py;
+                    if (plate != null && plate.visible) {
+                        px = plate.x + plate.getWidth() + Scl.scl(6f);
+                        py = plate.y + (plate.getHeight() - continueButton.getHeight()) * 0.5f;
+                    } else {
+                        px = box.x + Scl.scl(8f);
+                        py = box.y + box.getHeight() - continueButton.getHeight() * 0.5f;
+                    }
+                    continueButton.setPosition(px, py);
+                    continueButton.toFront();
+                }
+            }
+
             if (arrow != null) {
                 arrow.visible = !choiceMode && !typing && queue.size > 0;
                 if (arrow.visible) {
                     arrow.setPosition(box.x + box.getWidth() - arrow.getWidth() - Scl.scl(10f), box.y + Scl.scl(4f));
-                    arrow.color.a = 0.35f + 0.65f * Mathf.absin(Time.time, 0.8f, 1f);
+                    arrow.color.a = 0.35f + 0.65f * Mathf.absin(Time.time, 0.1f, 1f);
                 }
             }
 
@@ -394,8 +471,8 @@ public class FastDialog {
                 return;
             }
             if (queue.size > 0) {
-                Line line = queue.remove(0);
-                showLine(line.name, line.text);
+                Item item = queue.remove(0);
+                showItem(item);
             }
         }
 
@@ -406,6 +483,8 @@ public class FastDialog {
             waiting = false;
             choiceMode = false;
             FastDialog.lastChoice = index + 1;
+            FastDialog.lastChoiceToken = activeToken;
+            activeToken = 0;
             justPicked = true;
 
             String chosen = opts != null && index >= 0 && index < opts.length && opts[index] != null ? opts[index] : "";
@@ -418,6 +497,7 @@ public class FastDialog {
             }
             closing = true;
             waiting = false;
+            activeToken = 0;
             queue.clear();
             if (FastDialog.current == this) {
                 FastDialog.current = null;

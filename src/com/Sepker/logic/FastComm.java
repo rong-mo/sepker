@@ -108,7 +108,8 @@ public class FastComm {
         }
 
         public void tick() {
-            time += Time.delta;
+            // Time.delta 是 tick 数（约 1/帧），不是秒；3 秒 = 180 tick
+            time += Time.delta / 60f;
 
             // 0~0.15 秒淡入；2~3 秒一边反向滑回一边淡出（对齐「2~3秒反向操作且淡出」）
             float in = Mathf.clamp(time / 0.15f);
@@ -179,7 +180,8 @@ public class FastComm {
             }
 
             float spacing = Math.max(10f, h * 0.9f);
-            float offset = (Time.time * spacing / 0.5f) % spacing;
+            // Time.time 也是 tick；0.5 秒 = 30 tick 前进一个条纹间距
+            float offset = (Time.time * spacing / 30f) % spacing;
 
             Draw.color(color.r, color.g, color.b, alpha * 0.9f);
             Lines.stroke(Math.max(1.5f, h * 0.06f));

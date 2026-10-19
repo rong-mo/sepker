@@ -187,9 +187,12 @@ public class FastMessageI implements LInstruction {
                     return;
                 }
 
-                int choice = FastDialog.lastChoice;
+                // 只有「自己这一次选择」的结果才算数（别的选择可能已经覆盖了 lastChoice）
+                int finishedToken = pendingToken;
+                int choice = FastDialog.lastChoiceToken == finishedToken ? FastDialog.lastChoice : 0;
                 pendingToken = 0;
                 FastDialog.lastChoice = 0;
+                FastDialog.lastChoiceToken = 0;
 
                 if (choice > 0 && outVar != null) {
                     outVar.setnum(choice);

@@ -12,8 +12,9 @@
 [lightgray]  - 对话 / 选择 / 暂停三种模式，点同一个按钮切换
 [lightgray]  - 黑框从第一次显示起常驻屏幕底部（只有「暂停」或离开地图才关闭），从文本缓冲区打字机式打印；宽度随文本自适应（至少 3 行），左上角小黑框显示名字
 [lightgray]  - 名字在指令里填写，每次换行强制使用该名字
-[lightgray]  - 对话不阻塞：每执行一次就把这一句压进缓存队列；点击屏幕先补全当前行，再点一下切到下一句缓存
-[lightgray]  - 选择：把正文换成选项按钮，并阻塞到玩家点选；指令里每个选项一个输入框，右下角「+」可继续添加（2~8 个）
+[lightgray]  - 对话不阻塞：每执行一次就把这一句压进缓存队列；点击屏幕或名字右侧的「继续」按钮先补全当前行，再点一下切到下一句缓存
+[lightgray]  - 选择也排进同一个缓存队列：等前面的句子都切完才出现；在它出现并被点选之前，处理器一直阻塞
+[lightgray]  - 选择：把正文换成选项按钮；指令里每个选项一个输入框，右下角「+」可继续添加（2~8 个）
 [lightgray]  - 指令里新增「变量」输入框：点选结果（1 起）写进该逻辑变量并覆盖旧值（默认 sepkerchoice）
 [lightgray]  - 暂停：关闭对话框并清空缓存
 [lightgray]  - 旧的 fastmessage 写法（notify / announce / toast / mission）保持兼容
@@ -31,8 +32,9 @@
 [lightgray]  - Talk / Choose / Pause, cycled by one button
 [lightgray]  - The black box stays on screen from its first line (only Pause or leaving the map closes it); it typewrites the text buffer, fits the text (minimum 3 lines), with a small black name plate at its top-left
 [lightgray]  - The name is entered in the instruction and always overrides
-[lightgray]  - Talk does not block: each execution queues that line into a buffer; tap to finish the current line, tap again for the next queued line
-[lightgray]  - Choose: the text is replaced by option buttons and blocks until one is picked; one text field per option in the instruction, "+" at the bottom-right adds more (2-8)
+[lightgray]  - Talk does not block: each execution queues that line into a buffer; tap the screen or the "Continue" button right of the name to finish the current line, tap again for the next queued line
+[lightgray]  - Choices join the same queue: they appear only after all earlier queued lines have been advanced, and the processor stays blocked until the choice is shown and picked
+[lightgray]  - Choose: the text is replaced by option buttons; one text field per option in the instruction, "+" at the bottom-right adds more (2-8)
 [lightgray]  - A new "variable" field stores the chosen index (1-based) into that logic variable, overwriting its old value (default sepkerchoice)
 [lightgray]  - Pause: closes the dialog and clears the queue
 [lightgray]  - The old fastmessage syntax (notify / announce / toast / mission) still works
