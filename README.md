@@ -11,7 +11,7 @@
 | 内部 ID | `sepker` |
 | 类型 | 剧情 / 星球（Story / Planet mod） |
 | 适配版本 | Mindustry **v8**（`minGameVersion: 159`） |
-| 最新版本 | **V0.6.10** |
+| 最新版本 | **V0.6.11** |
 | 作者 | rong-mo |
 | 语言 | 简体中文 / English |
 

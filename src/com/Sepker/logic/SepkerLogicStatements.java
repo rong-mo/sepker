@@ -57,22 +57,49 @@ public class SepkerLogicStatements {
                         FastMessageStatement s = new FastMessageStatement();
 
                         if (tokens.length > 1) {
-                            String t = tokens[1];
-                            if (t != null && t.length() >= 2
-                                && t.charAt(0) == '"'
-                                && t.charAt(t.length() - 1) == '"') {
-                                t = t.substring(1, t.length() - 1);
-                            }
-                            for (mindustry.logic.MessageType mt : mindustry.logic.MessageType.all) {
-                                if (mt.name().equals(t)) {
-                                    s.type = mt;
-                                    break;
-                                }
-                            }
+                            s.kind = FastMessageStatement.kindFromToken(
+                                FastMessageStatement.unquote(tokens[1]));
                         }
 
                         if (tokens.length > 2) s.duration = tokens[2];
                         if (tokens.length > 3) s.cover = !tokens[3].equals("wait");
+
+                        if (s.kind == FastMessageStatement.K_COMM) {
+                            if (tokens.length > 4) {
+                                s.commStop = FastMessageStatement.unquote(tokens[4]).equals("stop");
+                            }
+                            if (tokens.length > 5) {
+                                s.commColor = FastMessageStatement.unquote(tokens[5]);
+                            }
+                        } else if (s.kind == FastMessageStatement.K_DIALOG) {
+                            if (tokens.length > 4) {
+                                s.dialogMode = FastMessageStatement.dialogModeFromToken(
+                                    FastMessageStatement.unquote(tokens[4]));
+                            }
+                            if (tokens.length > 5) {
+                                s.name = FastMessageStatement.unquote(tokens[5]);
+                            }
+                            if (s.dialogMode == FastMessageStatement.D_CHOOSE) {
+                                int count = 0;
+                                if (tokens.length > 6 && tokens[6] != null) {
+                                    try {
+                                        count = Integer.parseInt(
+                                            FastMessageStatement.unquote(tokens[6]));
+                                    } catch (Throwable ignored) {
+                                    }
+                                }
+                                if (count < 0) count = 0;
+                                if (count > 9) count = 9;
+                                for (int i = 0; i < count; i++) {
+                                    int idx = 7 + i;
+                                    if (idx < tokens.length && tokens[idx] != null) {
+                                        s.options.add(FastMessageStatement.unquote(tokens[idx]));
+                                    }
+                                }
+                                s.ensureOptions();
+                            }
+                        }
+
                         return s;
                     }
                 });

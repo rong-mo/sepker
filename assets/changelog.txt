@@ -1,3 +1,39 @@
+[blue]v0.6.11
+
+[white][中文]
+[lightgray]• 逻辑指令「快速消息」新增：通信
+[lightgray]  - 指令里可切换「开始 / 终止」；开始可自定义颜色（点画笔打开取色器）
+[lightgray]  - 屏幕上下各压一条约 1 厘米高的 45° 斜线条纹带，条纹持续向左 / 右滚动，每 0.5 秒前进一个条纹间距（看起来像复制一条）
+[lightgray]  - 顶 / 底的直线封边在 3 秒内一直存在
+[lightgray]  - 0~1 秒：> 从左往右、< 从右往左滑到各自位置；1~2 秒：<> 变暗、「通讯开始」淡入；2~3 秒：<> 反向滑回并整体淡出
+[lightgray]  - 「终止」动画与「开始」相同，颜色固定为浅红，文字为「通讯终止」
+[lightgray]• 逻辑指令「快速消息」新增：对话框
+[lightgray]  - 对话 / 选择 / 暂停三种模式，点同一个按钮切换
+[lightgray]  - 对话：屏幕底部升起黑色对话框，从文本缓冲区打字机式打印；宽度随文本自适应（至少 3 行），左上角小黑框显示名字
+[lightgray]  - 名字在指令里填写，显示时强制使用该名字
+[lightgray]  - 点击屏幕补全当前行，再点一下才显示下一条；wait 模式下会阻塞处理器
+[lightgray]  - 选择：把正文换成选项按钮；指令里每个选项一个输入框，右下角「+」可继续添加（2~9 个）
+[lightgray]  - 选择结果写入逻辑变量 sepkerchoice（1 开始；没选到则为 0）
+[lightgray]  - 暂停：直接结束绘制并关闭对话框
+[lightgray]  - 旧的 fastmessage 写法（notify / announce / toast / mission）保持兼容
+
+[white][English]
+[lightgray]• Fast Message: new "comm" type
+[lightgray]  - Toggle Start / Stop in the instruction; Start uses a customizable color (pencil = color picker)
+[lightgray]  - A ~1 cm band of scrolling 45° stripes at the top and bottom; the stripes advance one spacing every 0.5s (looks like a copy)
+[lightgray]  - Solid lines cap the top and bottom edges for the whole 3 seconds
+[lightgray]  - 0-1s: > slides left to right, < slides right to left; 1-2s: <> dims, "COMM LINK ONLINE" fades in; 2-3s: <> slides back and everything fades out
+[lightgray]  - Stop plays the same animation in fixed light red with "COMM LINK TERMINATED"
+[lightgray]• Fast Message: new "dialog" type
+[lightgray]  - Talk / Choose / Pause, cycled by one button
+[lightgray]  - Talk: a black box rises from the bottom and typewrites the text buffer; the width fits the text (minimum 3 lines), with a small black name plate at its top-left
+[lightgray]  - The name is entered in the instruction and always overrides
+[lightgray]  - Tap to finish the current line, tap again for the next line; wait mode blocks the processor
+[lightgray]  - Choose: the text is replaced by option buttons; one text field per option in the instruction, "+" at the bottom-right adds more (2-9)
+[lightgray]  - The chosen index is written to the logic variable sepkerchoice (1-based; 0 when nothing was chosen)
+[lightgray]  - Pause: stops drawing and closes the dialog
+[lightgray]  - The old fastmessage syntax (notify / announce / toast / mission) still works
+
 [blue]v0.6.10
 
 [white][中文]
